@@ -299,6 +299,21 @@ details.comp[open]>.card::before{content:"";display:block;width:44px;height:5px;
 body{background:var(--bg)}.bhero{background:linear-gradient(135deg,#796022,#a6822e 72%,#c99a25)!important;color:#fff!important;border-radius:24px!important}.collect-head{display:none}
 @media(max-width:699px){.collect{background:var(--surface);border:1px solid var(--line);border-radius:17px;overflow:hidden;box-shadow:var(--sh);margin-bottom:9px}.collect .row[data-l=cust]{display:none;margin:0;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px}.collect.expanded .row[data-l=cust]{display:grid}.collect-head{display:grid;grid-template-columns:minmax(0,1fr) auto 12px;gap:8px;align-items:center;width:100%;padding:12px;border:0;background:var(--surface);color:var(--ink);text-align:left;min-height:60px}.collect-name,.collect-money{display:grid;gap:2px}.collect-name{min-width:0}.collect-name b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.collect-name small,.collect-money small{font-size:10px;color:var(--muted);white-space:nowrap}.collect-money{text-align:right}.collect-money b{color:var(--accent);font-size:14px;white-space:nowrap}.collect.expanded .collect-head{background:var(--soft)}.kinds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px!important}.kc{min-width:0;padding:10px!important}.kc b{font-size:15px!important;overflow-wrap:anywhere}.sec{margin-top:10px}.chips{margin:8px 0!important}.chips button{font-size:12px;padding:5px 11px;min-height:34px}details.comp>summary.bbtn{min-height:46px}}
 @media(min-width:700px){.collect>.row{margin-bottom:10px}}
+
+/* HANT mobile NTU details and double-tap behavior, visual-only changes */
+html,body,button,a,input,select,textarea,summary,label,.row,.card,.collect,.ntu-extra-btn{touch-action:manipulation}
+.ntu-extra-btn{display:none}
+@media(max-width:699px){
+ .row[data-l="ntu"]{gap:8px}
+ .row[data-l="ntu"] .ntu-extra-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:42px;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--surface2);color:var(--ink);padding:8px 12px;font-size:12px;font-weight:650}
+ .row[data-l="ntu"] .ntu-extra-btn span{font-size:18px;transition:transform .15s}
+ .row[data-l="ntu"] .ntu-extra-content{display:none}
+ .row[data-l="ntu"].ntu-expanded .ntu-extra-content{display:grid}
+ .row[data-l="ntu"].ntu-expanded .ntu-extra-btn span{transform:rotate(180deg)}
+ .row[data-l="ntu"]>.two:first-of-type{grid-template-columns:minmax(0,1fr)}
+ .row[data-l="ntu"] .head{align-items:flex-start}
+ .row[data-l="ntu"] .head .hr{flex-shrink:0}
+}
 </style>
 </head>
 <body>
@@ -661,7 +676,7 @@ function ntuRow(r){
   var badge=st==='tl'?'<span class="stat ok" data-o="st">✓ Thanh lý</span>':st==='ok'?'<span class="stat ok" data-o="st">✓ Đạt mindue</span>':st==='low'?'<span class="stat low" data-o="st">Chưa đủ mindue</span>':'<span class="stat" data-o="st">Chưa thu</span>';
   return '<div class="row'+(hit?' hit':st==='low'?' part':'')+'" data-l="ntu" data-id="'+r.id+'">'+
    '<div class="head"><div style="flex:1;min-width:0"><b style="display:block;overflow-wrap:anywhere">'+esc(r.n||'(chưa có tên)')+'</b><span class="mini">HĐ '+esc(r.hd||'—')+' · POS '+grp(r.pos)+'</span></div><div class="hr">'+badge+'<button class="ib sm" type="button" data-act="cphd" aria-label="Sao chép số HĐ">'+svg(IC.cp)+'</button></div></div>'+
-   '<div class="two"><label class="f">Tiền thu<input type="text" inputmode="numeric" class="num" data-f="tien" data-m="1" value="'+grp(r.tien)+'"></label>'+
+   '<div class="two"><label class="f">Tiền thu<input type="text" inputmode="numeric" class="num" data-f="tien" data-m="1" value="'+grp(r.tien)+'"></label></div>'+'<button type="button" class="ntu-extra-btn" aria-expanded="false">Mindue · POS đã thu · Hệ số trách nhiệm <span aria-hidden="true">⌄</span></button><div class="two ntu-extra-content">'+
    '<label class="f">Mindue<input type="text" inputmode="numeric" class="num" data-f="mind" data-m="1" value="'+grp(r.mind)+'"></label>'+
    '<div class="f">POS đã thu (tự điền)<div class="ro" data-o="pt">'+(grp(r.posThu)||'0')+'</div></div>'+
    '<label class="f">Hệ số trách nhiệm<select data-f="he" class="'+(miss?'miss':'')+'">'+heOpts(r)+'</select></label></div>'+
@@ -787,7 +802,7 @@ function findItem(row){var l=S[row.dataset.l];for(var i=0;i<l.length;i++)if(l[i]
 
 document.addEventListener('click',function(e){
   var t=e.target,b=t.closest('[data-act]');
-  if(t.closest('.collect-head')){var item=t.closest('.collect');item.classList.toggle('expanded');item.querySelector('.collect-head').setAttribute('aria-expanded',item.classList.contains('expanded')?'true':'false');return}if(t.closest('#bell')){histOpen();return}if(t.id==='histx'||t.id==='histw'){histClose();return}if(t.closest('#me')){location.hash='#cai-dat';return}if(t.closest('#undo')){doUndo();return}if(t.closest('#redo')){doRedo();return}
+  if(t.closest('.ntu-extra-btn')){var nx=t.closest('.row[data-l=ntu]');nx.classList.toggle('ntu-expanded');t.closest('.ntu-extra-btn').setAttribute('aria-expanded',nx.classList.contains('ntu-expanded')?'true':'false');return}if(t.closest('.collect-head')){var item=t.closest('.collect');item.classList.toggle('expanded');item.querySelector('.collect-head').setAttribute('aria-expanded',item.classList.contains('expanded')?'true':'false');return}if(t.closest('#bell')){histOpen();return}if(t.id==='histx'||t.id==='histw'){histClose();return}if(t.closest('#me')){location.hash='#cai-dat';return}if(t.closest('#undo')){doUndo();return}if(t.closest('#redo')){doRedo();return}
   if(t.closest('#sy')){if(cfg.on&&cfg.url){sync.manual=true;sync()}else location.hash='#cai-dat';return}
   var seg=t.closest('[data-ct],[data-fc],[data-fn],[data-th]');
   if(seg){
