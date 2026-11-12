@@ -313,6 +313,17 @@ html,body,button,a,input,select,textarea,summary,label,.row,.card,.collect,.ntu-
  .row[data-l="ntu"] .head{align-items:flex-start}
  .row[data-l="ntu"] .head .hr{flex-shrink:0}
 }
+
+/* Personal greeting: only profile text, no KPI/Sheets logic changed */
+.profile-greeting{background:var(--surface);border:1px solid var(--line);border-radius:17px;padding:13px 15px;margin-bottom:12px;box-shadow:var(--sh)}
+.profile-greeting-main{display:flex;align-items:center;gap:11px}
+.profile-greeting-avatar{width:42px;height:42px;flex-shrink:0;display:grid;place-items:center;border-radius:13px;background:var(--soft);color:var(--key);font-size:21px}
+.profile-greeting-main>div{display:grid;gap:2px;min-width:0}
+.profile-greeting-main small{font-size:10px;letter-spacing:.075em;font-weight:750;color:var(--muted)}
+.profile-greeting-main strong{font-size:clamp(15px,4.1vw,18px);overflow-wrap:anywhere;line-height:1.3;color:var(--ink)}
+.profile-greeting-meta{display:flex;align-items:center;gap:6px 15px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:11px;padding-top:9px;font-size:12px;color:var(--muted)}
+.profile-greeting-meta b{color:var(--ink)}
+.profile-greeting p{font-size:12px;color:var(--muted);margin:9px 0 0}
 </style>
 </head>
 <body>
@@ -555,7 +566,9 @@ function ovHTML(){
   var o=calc(S),nx=o.next?o.next[0]:null;
   var max=Math.max(1.2,o.pCof,o.pNon,o.pNtu,o.total,nx||0)*1.06,mk2=[{at:1}];if(nx)mk2.push({at:nx,c:'nx'});
   var C=2*Math.PI*52,v=Math.min(o.total,1),ov=Math.max(0,Math.min(o.total-1,1)),over=o.total-1;
-  var h='<div class="slogan"><span aria-hidden="true">💪</span><div>Chúc anh em luôn MAX BONUS nhé!</div></div>';
+  var greetingName=String(pf.name||'').trim(),greetingCode=String(pf.code||'').trim(),greetingTeam=String(pf.branch||'').trim();
+  var meta=[];if(greetingCode)meta.push('<span>Mã nhân viên: <b>'+esc(greetingCode)+'</b></span>');if(greetingTeam)meta.push('<span>Team: <b>'+esc(greetingTeam)+'</b></span>');
+  var h='<section class="profile-greeting" aria-label="Lời chào cá nhân"><div class="profile-greeting-main"><span class="profile-greeting-avatar" aria-hidden="true">✦</span><div><small>CHÀO MỪNG TRỞ LẠI</small><strong>Xin chào, '+(greetingName?esc(greetingName):'bạn')+'!</strong></div></div>'+(meta.length?'<div class="profile-greeting-meta">'+meta.join('')+'</div>':'')+'<p>Chúc bạn một ngày làm việc hiệu quả và đạt mục tiêu KPI!</p></section>';
   h+='<div class="bhero"><div class="row2"><div class="ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="t" cx="60" cy="60" r="52"/><circle class="v" cx="60" cy="60" r="52" stroke-dasharray="'+(v*C).toFixed(1)+' '+C.toFixed(1)+'"/>'+(ov>0?'<circle class="o" cx="60" cy="60" r="40" stroke-dasharray="'+(ov*2*Math.PI*40).toFixed(1)+' '+(2*Math.PI*40).toFixed(1)+'" style="stroke-width:7"/>':'')+'</svg><b><span>'+pct(o.total,1)+'<small>hoàn thành</small></span></b></div>'+
    '<div><small class="k">Thực nhận sau thuế</small><div class="net2">'+money(o.thuc)+'</div><span class="chp g">Bậc bonus '+pct(o.rate,2)+'</span></div></div>'+
    '<div class="sub">'+(over>=0?'Vượt mức 100%: +'+pct(over):'Còn thiếu '+pct(-over)+' đến mốc 100%')+' · KQ tiền thu '+pct(o.kqTien)+' + KQ NTU '+pct(o.kqNtu)+'</div></div>';
@@ -656,7 +669,7 @@ function updThu(){
   var kd=document.getElementById('kinds');
   if(kd)kd.innerHTML=[['kỳ','Thu kỳ'],['qh','Thu quá hạn'],['tl','Thanh lý']].map(function(g){
     var s=0,n=0;S.cust.forEach(function(c){if(grpOf(c,g[0])&&(has(c.cof)||has(c.non))){s+=num(c.cof)+num(c.non);n++}});
-    return '<div class="kc"><small>'+g[1]+'</small><b>'+money(s)+'</b><i>'+n+' khoản thu</i></div>'}).join('')+(function(){var a=0,p=0,n=0;S.cust.forEach(function(c){if(c.x){a+=num(c.xa);p+=num(c.pe);n++}});return '<div class="kc px"><small>Thu chỉ tính POS</small><b>'+money(a)+'</b><i>POS '+grp(p)+' · '+n+' khoản</i></div>'})();
+    return '<div class="kc"><small>'+g[1]+'</small><b>'+money(s)+'</b><i>'+n+' khoản thu</i></div>'}).join('')+(function(){var a=0,p=0,n=0;S.cust.forEach(function(c){if(c.x){a+=num(c.xa);p+=num(c.pe);n++}});return '<div class="kc px"><small>Thu chỉ tính POS quy đổi</small><b>'+money(a)+'</b><i>POS '+grp(p)+' · '+n+' khoản</i></div>'})();
   document.querySelectorAll('.row[data-l=cust]').forEach(function(r){
     var c=S.cust.filter(function(x){return x.id===r.dataset.id})[0];if(!c)return;
     r.classList.toggle('hit',got(c)&&!c.x);r.classList.toggle('px',!!c.x);
@@ -723,7 +736,7 @@ function viewSet(){
   var mode=rd(THEME)||'auto';
   var prof='<div class="sec"><div class="card pf"><div class="ph"><div class="av" aria-hidden="true" id="pfav">'+esc(avL())+'</div><div style="min-width:0"><b style="display:block;font-size:17px;overflow-wrap:anywhere">'+esc(pf.name||'Hồ sơ cá nhân')+'</b><span class="mini">'+esc([pf.role,pf.code].filter(Boolean).join(' · ')||'Nhập thông tin của bạn bên dưới')+'</span></div></div>'+
    '<div class="grid2"><label class="f">Họ tên<input type="text" data-pf="name" autocomplete="off" value="'+esc(pf.name)+'"></label><label class="f">Chức danh<input type="text" data-pf="role" autocomplete="off" value="'+esc(pf.role)+'"></label>'+
-   '<label class="f">Mã nhân viên<input type="text" data-pf="code" autocomplete="off" value="'+esc(pf.code)+'"></label><label class="f">Chi nhánh<input type="text" data-pf="branch" autocomplete="off" value="'+esc(pf.branch)+'"></label></div>'+
+   '<label class="f">Mã nhân viên<input type="text" data-pf="code" autocomplete="off" value="'+esc(pf.code)+'"></label><label class="f">Team<input type="text" data-pf="branch" autocomplete="off" value="'+esc(pf.branch)+'"></label></div>'+
    '<p class="mini" style="margin:0">Chỉ lưu trên máy này, không gửi lên Google Sheet.</p></div></div>';
   var syncSec='<div class="sec"><div class="card"><details id="syout"><summary>Đồng bộ Google Sheet</summary><div style="display:grid;gap:8px">'+
    '<div class="srow"><div style="min-width:0"><b>Trạng thái</b><div class="mini" id="sy-state"></div></div><button class="btn pri sm" type="button" data-act="syncnow">Đồng bộ ngay</button></div>'+
