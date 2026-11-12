@@ -1,20 +1,26 @@
-# HANT — KPI Workspace
+# HANT – Preview: Vàng Champagne + nghiệp vụ HANH KPI gốc
 
-Workspace KPI độc lập, thiết kế theo concept **Midnight Ledger**: xanh than, xanh mint và điểm nhấn lime. Responsive cho desktop và mobile.
+**Bản xem trước nằm trong nhánh** `preview/gold-mobile-original-engine`, chưa thay đổi `main`.
 
-## Chạy thử
-Mở `index.html` bằng trình duyệt. Có thể bật GitHub Pages từ Settings → Pages → Deploy from branch → main → /(root).
+## Khác biệt so với HANT hiện tại
+- Dùng lại mã nguồn nghiệp vụ gốc `hanh-kpi/main/index.html` thay vì tính lại bằng mô hình HANT MVP.
+- Trang Thu tiền hiển thị mỗi khoản thành một dòng tóm tắt trên điện thoại; chạm để mở chi tiết và chỉnh sửa.
+- Phối màu vàng champagne, trắng ngà; hỗ trợ dark mode.
+- Target NTU (`tNTU`), NTU CIC OK (`ntuOK`) và hồ sơ đạt mindue (`okN`) được giữ tách biệt.
+- Không còn đổi trạng thái "đang đồng bộ" khi đồng bộ nền thành công.
 
-## Tính năng MVP
-- Dashboard KPI tổng hợp COF, NON, POS quy đổi, NTU và tiến độ mục tiêu.
-- Quản lý khoản thu theo loại thu và hệ số POS.
-- Quản lý hồ sơ NTU, trạng thái mindue và tiền thu.
-- Ước tính bonus, trách nhiệm NTU và thu nhập sau thuế theo bảng hệ số tham chiếu.
-- Cấu hình target, kỳ KPI, khoản cố định, người phụ thuộc và bảo hiểm.
-- Lưu dữ liệu trên trình duyệt, undo/redo, xuất/nhập JSON.
+## Tệp đi kèm
+- `index.html`: giao diện preview với engine gốc, chưa thay đổi công thức.
+- `Code.gs`: Apps Script gốc để đối chiếu và triển khai độc lập khi cần, **không tự kết nối Sheet**.
+- `sw.js`: cache tài nguyên tĩnh, bỏ qua URL có query string.
+- `manifest.webmanifest`: khai báo ứng dụng xem trước.
 
-## Giới hạn hiện tại
-- Đây là bản MVP độc lập; chưa kết nối Google Sheets và chưa đồng bộ đa thiết bị.
-- Dữ liệu lưu trong localStorage của trình duyệt. Nên xuất bản sao lưu định kỳ.
-- Các bảng tính KPI/thuế là logic tham chiếu từ dự án trước, cần đối chiếu chính sách nội bộ trước khi dùng để chốt thu nhập.
-- Chưa có kiểm thử thực tế trên nhiều thiết bị/trình duyệt.
+## Giới hạn và an toàn
+- LocalStorage được tách bằng tiền tố `hant-preview-` để tránh ghi đè dữ liệu HANT MVP.
+- Mặc định chưa có kết nối Google Sheets. Nếu người dùng tự nhập cấu hình đồng bộ vào preview, dữ liệu có thể được ghi lên Sheet thật.
+- Chưa có kiểm thử bằng trình duyệt iPhone, Google Sheets thật hay quy trình đồng bộ nhiều thiết bị.
+- GitHub Pages chưa được xác minh đã bật; nhánh preview **không tự động tạo URL website**.
+- Chỉ merge sau khi hoàn tất thử nghiệm.
+
+## Mã tham chiếu
+Nguồn logic: https://github.com/tohanh1/hanh-kpi/blob/main/index.html
