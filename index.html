@@ -575,9 +575,9 @@ function ovHTML(){
   var tot6=o.cof+o.non,tg6=num(S.tCOF)+num(S.tNON);
   h+='<div class="bento">'+
    '<div class="bt c1"><small>Tổng thu COF</small><b>'+money(o.cof)+'</b>'+pg(o.pCof)+'<i>'+(S.tCOF>0?pct(o.pCof,1)+' của target':'chưa có target')+'</i></div>'+
-   '<div class="bt"><small>Target COF</small><b>'+money(S.tCOF)+'</b><i>mục tiêu tháng</i></div>'+
+   '<div class="bt"><small>Target COF</small><b>'+money(S.tCOF)+'</b><i>1% hoàn thành tiền: '+(S.tCOF>0?money(S.tCOF/40):'chưa có target')+'</i></div>'+ 
    '<div class="bt c2"><small>Tổng thu NON</small><b>'+money(o.non)+'</b>'+pg(o.pNon)+'<i>'+(S.tNON>0?pct(o.pNon,1)+' của target':'chưa có target')+'</i></div>'+
-   '<div class="bt"><small>Target NON</small><b>'+money(S.tNON)+'</b><i>mục tiêu tháng</i></div>'+
+   '<div class="bt"><small>Target NON</small><b>'+money(S.tNON)+'</b><i>1% hoàn thành tiền: '+(S.tNON>0?money(S.tNON/60):'chưa có target')+'</i></div>'+
    '<div class="bt"><small>Tổng thu (COF + NON)</small><b>'+money(tot6)+'</b>'+pg(tg6>0?tot6/tg6:0)+'<i>'+(tg6>0?pct(tot6/tg6,1)+' của target tổng':'chưa có target')+'</i></div>'+
    '<div class="bt"><small>Target tổng</small><b>'+money(tg6)+'</b><i>COF + NON</i></div>'+
    '<div class="bt c3"><small>NTU CIC OK</small><b>'+S.ntuOK+' / '+S.tNTU+' bộ</b>'+pg(o.pNtu)+'<i>'+pct(o.pNtu,1)+'</i></div>'+
