@@ -324,6 +324,9 @@ html,body,button,a,input,select,textarea,summary,label,.row,.card,.collect,.ntu-
 .profile-greeting-meta{display:flex;align-items:center;gap:6px 15px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:11px;padding-top:9px;font-size:12px;color:var(--muted)}
 .profile-greeting-meta b{color:var(--ink)}
 .profile-greeting p{font-size:12px;color:var(--muted);margin:9px 0 0}
+
+/* Emphasize the overall collection target percentage without changing KPI logic */
+.bt i.target-money-highlight{display:inline-block;justify-self:start;width:max-content;max-width:100%;font-weight:800;color:var(--key);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:13px;line-height:1.3;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -578,7 +581,7 @@ function ovHTML(){
    '<div class="bt"><small>Target COF</small><b>'+money(S.tCOF)+'</b><i>'+(S.tCOF>0?grp(Math.round(S.tCOF/40))+' = 1% tiền':'chưa có target')+'</i></div>'+ 
    '<div class="bt c2"><small>Tổng thu NON</small><b>'+money(o.non)+'</b>'+pg(o.pNon)+'<i>'+(S.tNON>0?pct(o.pNon,1)+' của target':'chưa có target')+'</i></div>'+
    '<div class="bt"><small>Target NON</small><b>'+money(S.tNON)+'</b><i>'+(S.tNON>0?grp(Math.round(S.tNON/60))+' = 1% tiền':'chưa có target')+'</i></div>'+
-   '<div class="bt"><small>Tổng thu (COF + NON)</small><b>'+money(tot6)+'</b>'+pg(tg6>0?tot6/tg6:0)+'<i>'+(tg6>0?pct(tot6/tg6,1)+' của target tổng':'chưa có target')+'</i></div>'+
+   '<div class="bt"><small>Tổng thu (COF + NON)</small><b>'+money(tot6)+'</b>'+pg(tg6>0?tot6/tg6:0)+'<i class="target-money-highlight">'+(tg6>0?pct(tot6/tg6,1)+' của target tiền':'chưa có target')+'</i></div>'+
    '<div class="bt"><small>Target tổng</small><b>'+money(tg6)+'</b><i>COF + NON</i></div>'+
    '<div class="bt c3"><small>NTU CIC OK</small><b>'+S.ntuOK+' / '+S.tNTU+' bộ</b>'+pg(o.pNtu)+'<i>'+pct(o.pNtu,1)+'</i></div>'+
    '<div class="bt dk"><small>POS quy đổi</small><b>'+money(o.pos)+'</b><i>× bậc '+pct(o.rate,2)+'</i></div></div>';
