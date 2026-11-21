@@ -30,3 +30,10 @@ Phiên bản chính trên nhánh `main` đã được thay bằng giao diện mo
 Nếu GitHub Pages hiện đang trỏ nhánh `preview/gold-mobile-original-engine`, nhánh preview đã có cập nhật giao diện NTU. Muốn website dùng nhánh chính mới, vào Settings → Pages và chọn `main`, thư mục `/(root)`.
 
 Nguồn tham chiếu: https://github.com/tohanh1/hanh-kpi
+
+
+## Tự động xếp khoản thu trên MIX 1 NEW (hàng 8–60)
+
+Đã bổ sung xử lý nhập/sửa từ Sheet và HANT Web App. Thu kỳ được dồn từ hàng 8 xuống; Thanh lý, Thu quá hạn, Ngoại lệ được xếp từ hàng 60 lên theo thứ tự nhóm. **Tính năng trong Google Sheet chỉ hoạt động sau khi cập nhật và triển khai lại dự án Apps Script cùng trigger được cấp quyền**; cập nhật GitHub hoặc Pages một mình không đủ.
+
+Hướng dẫn bật, sao lưu, thử nghiệm và khôi phục: [HUONG-DAN-SAP-XEP.md](./HUONG-DAN-SAP-XEP.md).
