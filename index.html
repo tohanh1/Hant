@@ -495,18 +495,19 @@ function normR(d){return{s:pick(d.s||{},SF),month:d.month||'',cust:(d.cust||[]).
  */
 function adoptCustIds(R){
   if(!base||!R.cust.some(function(r){return !!r.sid}))return;
-  var older=(base.cust||[]).filter(function(r){return !r.sid});
+  /* If an Apps Script project is reinstalled and IDs change, recover only by unique record matching. */
+  var remoteIds={};R.cust.forEach(function(r){if(r.sid)remoteIds[r.sid]=1});
+  var older=(base.cust||[]).filter(function(b){return !b.sid||!remoteIds[b.sid]});
   if(!older.length)return;
   var used={};
   older.forEach(function(b){
     function same(x){return eq(b.n,x.n)&&eq(b.k,x.k)&&eq(b.cof,x.cof)&&eq(b.non,x.non)&&eq(b.pe,x.pe)}
     var candidates=R.cust.filter(function(x){return x.sid&&!used[x.sid]&&same(x)});
-    if(candidates.length!==1){
-      candidates=R.cust.filter(function(x){return x.sid&&!used[x.sid]&&eq(b.n,x.n)&&eq(b.k,x.k)});
-    }
-    if(candidates.length!==1)throw new Error('Vị trí hồ sơ Thu tiền thay đổi hoặc trùng tên: hãy sao lưu JSON và kiểm tra trước khi tiếp tục đồng bộ');
-    var match=candidates[0];used[match.sid]=true;b.sid=match.sid;
-    S.cust.forEach(function(x){if(!x.sid&&x.row===b.row){x.sid=match.sid}});
+    if(candidates.length!==1)candidates=R.cust.filter(function(x){return x.sid&&!used[x.sid]&&eq(b.n,x.n)&&eq(b.k,x.k)});
+    if(candidates.length!==1)throw new Error('Đổi vị trí hoặc trùng hồ sơ Thu tiền: cần sao lưu JSON và kiểm tra trước khi đồng bộ');
+    var match=candidates[0],oldSid=b.sid;used[match.sid]=true;b.sid=match.sid;
+    S.cust.forEach(function(x){if((oldSid&&x.sid===oldSid)||(!x.sid&&x.row===b.row)){x.sid=match.sid}});
+    if(oldSid&&S.mineSid&&S.mineSid[oldSid]){S.mineSid[match.sid]=1;delete S.mineSid[oldSid]}
   });
   S.mineSid=S.mineSid||{};
   S.cust.forEach(function(x){if(x.sid&&S.mine&&S.mine[x.row])S.mineSid[x.sid]=1});
@@ -530,7 +531,7 @@ function makePatches(R,M){
       if(m.row==null){if(!blankItem(m,l))p.push({t:'a',l:l,tmp:m.id,f:pick(m,F)});return}
       var key=kOf(l,m),r=Rm[key],f={},n=0;F.forEach(function(fl){if(!r||!eq(m[fl],r[fl])){f[fl]=m[fl]==null?'':m[fl];n++}});
       if(n){var pt={t:'u',l:l,row:r?r.row:m.row,f:f};if(l==='ntu')pt.hd=m.hd;else if(r){pt.exp=r.n;pt.sid=r.sid||m.sid||'';}p.push(pt)}seen[key]=1});
-    R[l].forEach(function(r){if(seen[kOf(l,r)])return;if(l==='cust')p.push({t:'d',l:l,row:r.row,sid:r.sid||'',exp:r.n,full:!!((S.mine&&S.mine[r.row])||(S.mineSid&&S.mineSid[r.sid]))});else if(S.mineN&&S.mineN[String(r.hd).trim()])p.push({t:'d',l:l,row:r.row,hd:r.hd,full:true})})});
+    R[l].forEach(function(r){if(seen[kOf(l,r)])return;if(l==='cust')p.push({t:'d',l:l,row:r.row,sid:r.sid||'',exp:r.n,full:!!(r.sid?(S.mineSid&&S.mineSid[r.sid]):(S.mine&&S.mine[r.row]))});else if(S.mineN&&S.mineN[String(r.hd).trim()])p.push({t:'d',l:l,row:r.row,hd:r.hd,full:true})})});
   SF.forEach(function(k){if(!eq(M.s[k],R.s[k]))p.push({t:'s',k:k,v:M.s[k]==null?'':M.s[k]})});
   return p;
 }
@@ -581,7 +582,7 @@ function sync(){
         if(x.sid&&bySid[x.sid]){
           x.row=bySid[x.sid].row;
           if(S.mineSid[x.sid])newMine[x.row]=1;
-        }else if(x.row!=null&&S.mine[x.row])newMine[x.row]=1;
+        }else if(!x.sid&&x.row!=null&&S.mine[x.row])newMine[x.row]=1;
       });
       S.mine=newMine;
       var bh={};base.ntu.forEach(function(x){bh[String(x.hd).trim()]=x.row});S.ntu.forEach(function(x){var h=String(x.hd).trim();if(bh[h]!=null)x.row=bh[h]});
@@ -706,7 +707,7 @@ function collectSummary(c){
 function custRow(c){
   var h=got(c),k=kind(c.k),isNL=c.k===NL&&!c.x,he=isNL?heff(c):null;
   return '<div class="collect"><button type="button" class="collect-head" aria-expanded="false"><span class="collect-name"><b>'+esc(c.n||'(Chưa có tên)')+'</b><small>'+esc(c.k||'Thu kỳ')+'</small></span><span class="collect-money">'+collectSummary(c)+'</span><span aria-hidden="true">⌄</span></button><div class="row'+(c.x?' px':h?' hit':'')+'" data-l="cust" data-id="'+c.id+'">'+
-   '<div class="head"><input type="text" data-f="n" value="'+esc(c.n)+'" placeholder="Tên khách hàng" aria-label="Tên khách hàng"><button class="btn sm danger" data-act="del" type="button" aria-label="Xóa dòng">'+((c.row!=null&&!((S.mine&&S.mine[c.row])||(S.mineSid&&S.mineSid[c.sid])))?'Xóa số thu':'Xóa')+'</button></div>'+
+   '<div class="head"><input type="text" data-f="n" value="'+esc(c.n)+'" placeholder="Tên khách hàng" aria-label="Tên khách hàng"><button class="btn sm danger" data-act="del" type="button" aria-label="Xóa dòng">'+((c.row!=null&&!(c.sid?(S.mineSid&&S.mineSid[c.sid]):(S.mine&&S.mine[c.row])))?'Xóa số thu':'Xóa')+'</button></div>'+
    '<select data-f="k" aria-label="Kiểu thu">'+kindOpts(c.k)+'</select>'+
    (c.x?'<div class="pxtag">Chỉ tính POS · không tính KPI</div><div class="two"><label class="f">Số tiền (đ)<input type="text" inputmode="numeric" class="num" data-f="xa" data-m="1" value="'+grp(c.xa)+'"></label><label class="f">Hệ số<select data-f="xh" aria-label="Hệ số">'+(has(c.xh)?'':'<option value="" selected>Chưa rõ</option>')+coefOpts(c.xh)+'</select></label></div>'+(!has(c.xa)&&num(c.pe)>0?'<div class="mini">Số tiền gốc và hệ số không lưu trên Sheet, chỉ có POS quy đổi.</div>':''):'')+
    (c.x?'':'<div class="two"><label class="f">COF'+(isNL?'':' (×'+dec(k[1])+')')+'<input type="text" inputmode="numeric" class="num" data-f="cof" data-m="1" value="'+grp(c.cof)+'"></label>'+
@@ -890,7 +891,7 @@ document.addEventListener('click',function(e){
     else{wr(THEME,seg.dataset.th);applyTheme();viewSet()}
     return}
   if(!b)return;var a=b.dataset.act,row=b.closest('.row');
-  if(a==='del'&&row){var f=findItem(row);if(f){pre(true);var it=f[0][f[1]];if(row.dataset.l==='ntu'){logEv('Xóa hồ sơ NTU '+(it.n||it.hd));f[0].splice(f[1],1)}else if(it.row!=null&&!((S.mine&&S.mine[it.row])||(S.mineSid&&S.mineSid[it.sid]))){logEv('Xóa số thu của '+(it.n||'(chưa tên)'));it.cof='';it.non='';if(it.x){it.x='';it.xa='';it.xh='';it.pe=''}}else{logEv('Xóa dòng '+(it.n||'(chưa tên)'));f[0].splice(f[1],1)}changed();render()}}
+  if(a==='del'&&row){var f=findItem(row);if(f){pre(true);var it=f[0][f[1]];if(row.dataset.l==='ntu'){logEv('Xóa hồ sơ NTU '+(it.n||it.hd));f[0].splice(f[1],1)}else if(it.row!=null&&!(it.sid?(S.mineSid&&S.mineSid[it.sid]):(S.mine&&S.mine[it.row]))){logEv('Xóa số thu của '+(it.n||'(chưa tên)'));it.cof='';it.non='';if(it.x){it.x='';it.xa='';it.xh='';it.pe=''}}else{logEv('Xóa dòng '+(it.n||'(chưa tên)'));f[0].splice(f[1],1)}changed();render()}}
   else if(a==='addn'){
     var hd=String(nf.hd).replace(/\s/g,''),pos=num(String(nf.pos).replace(/\D/g,'')),mi=num(String(nf.mind).replace(/\D/g,''));
     if(!hd){toast('Nhập số HĐ');return}if(pos<=0){toast('Nhập POS');return}if(mi<=0){toast('Nhập mindue');return}
