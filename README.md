@@ -37,3 +37,22 @@ Nguồn tham chiếu: https://github.com/tohanh1/hanh-kpi
 Đã bổ sung xử lý nhập/sửa từ Sheet và HANT Web App. Thu kỳ được dồn từ hàng 8 xuống; Thanh lý, Thu quá hạn, Ngoại lệ được xếp từ hàng 60 lên theo thứ tự nhóm. **Tính năng trong Google Sheet chỉ hoạt động sau khi cập nhật và triển khai lại dự án Apps Script cùng trigger được cấp quyền**; cập nhật GitHub hoặc Pages một mình không đủ.
 
 Hướng dẫn bật, sao lưu, thử nghiệm và khôi phục: [HUONG-DAN-SAP-XEP.md](./HUONG-DAN-SAP-XEP.md).
+
+
+## Nâng cấp tháng mới, định dạng NTU và Thu 1.0
+
+- **Bắt đầu tháng mới:** cần đồng bộ Google Sheets. Trước khi Reset, ứng dụng xuất bản sao JSON và Apps Script tạo tab sao lưu ẩn `BACKUP MIX yyyyMMdd-HHmmss`. Chỉ báo thành công khi API xác nhận Reset.
+- **Thu tiền A8:E60:** giữ tất cả tên ở A, đưa B về `Thu kỳ`, xóa C:D, cột E phục hồi công thức POS.
+- **NTU G:Q:** xóa **giá trị** trong G:N và Q, giữ mọi công thức, bao gồm O:P, J và Q nếu có. Không đổi cấu trúc bảng.
+- **Targets:** xóa Target COF, Target NON, Target NTU và NTU CIC OK; giữ các thiết lập khác.
+- **Thu 1.0:** hệ số POS COF = 1,0 và NON = 1,0. Sheet `HANH 2026 / MIX 1 NEW` đã được cập nhật danh sách kiểu thu và bảng hệ số; không tác động dữ liệu hồ sơ.
+- **Cột P:** chỉ làm nổi bật ô trạng thái bằng xanh lá/xanh dương/cam/xám. C:D không còn bị phủ bởi quy tắc tô xanh theo hàng của A8:E60.
+- **An toàn đồng bộ:** mỗi lần Reset tăng mã phiên kỳ; ứng dụng khác phải tải lại dữ liệu kỳ mới trước khi ghi. Phiên bản ứng dụng và Apps Script **phải cập nhật cùng nhau**.
+
+### Kích hoạt phiên bản mới
+
+**GitHub Pages chỉ cập nhật giao diện PWA, không cập nhật Apps Script Google Sheets.** Cập nhật `Code.gs` trong dự án Apps Script đang kết nối với `HANH 2026`, giữ nguyên token bí mật đang dùng. Sau đó, trong Apps Script chọn **Triển khai → Quản lý hoạt động triển khai → Chỉnh sửa → Phiên bản mới → Triển khai**. Kiểm tra URL đồng bộ và thực hiện thử Reset trên một **bản sao** của Sheet trước khi dùng trên dữ liệu thật.
+
+**Chú ý:** `Code.gs` trên GitHub chứa token mẫu, không tự bảo mật hay vận hành được nếu chưa cấu hình Apps Script. Không đưa token thật vào repo công khai. Nếu Apps Script chưa cập nhật, nút Reset sẽ từ chối nhận thành công và không tự xóa dữ liệu cục bộ.
+
+Bản sao lưu mã trước thay đổi: `backup/hant-before-month-reset-20261121`.
