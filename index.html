@@ -907,6 +907,8 @@ function resetMonthFromApp(){
     body:JSON.stringify({token:cfg.token,action:'resetMonth',confirm:'RESET_MONTH',
       generation:base?base.generation:'initial'})
   }).then(parse).then(function(j){
+    if(j.reset!==true||!j.backupSheet||!j.data||!j.data.generation)
+      throw new Error('Apps Script chưa triển khai phiên bản Reset mới; Google Sheets chưa được xác nhận');
     var R=normR(j.data);
     S.cust=R.cust.map(function(x){return Object.assign({id:uid()},x)});
     S.ntu=R.ntu.map(function(x){return Object.assign({id:uid()},x)});
