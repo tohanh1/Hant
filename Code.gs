@@ -33,22 +33,29 @@ function out_(o) {
 
 function onOpen() {
   try {
-    SpreadsheetApp.getUi().createMenu('HANH KPI').addItem('Sắp xếp NTU theo POS tăng dần', 'sortNtuNow').addToUi();
+    SpreadsheetApp.getUi().createMenu('HANH KPI').addItem('Sắp xếp NTU theo POS tăng dần', 'sortNtuNow').addItem('Sắp xếp thu tiền hàng 8–60', 'sortCustNow').addToUi();
   } catch (e) {}
 }
 
 /* POS đã thu (cột J) tự điền = POS (cột I) khi Tiền thu (K) > 0 và K >= Mindue (L); ngược lại để trống. Chạy khi bạn tự nhập trên Sheet. */
 function onEdit(e) {
+  if (!e || !e.range) return;
+  var sh = e.range.getSheet();
+  if (sh.getName() !== CFG.SHEET) return;
+  var r = e.range, lock = LockService.getScriptLock();
+  var touchesCust = r.getRow() <= 60 && r.getLastRow() >= 8 &&
+    r.getLastColumn() >= 2 && r.getColumn() <= 5; /* avoid moving a row while just typing its name */
+  var touchesNtu = r.getLastColumn() >= 9 && r.getColumn() <= 12;
+  if (!touchesCust && !touchesNtu) return;
+  if (!lock.tryLock(20000)) throw new Error('Không lấy được khóa sắp xếp; hãy thử lại');
   try {
-    if (!e || !e.range) return;
-    var sh = e.range.getSheet();
-    if (sh.getName() !== CFG.SHEET) return;
-    var r = e.range;
-    if (r.getLastColumn() < 9 || r.getColumn() > 12) return;
     var L = layout_(sh);
-    var r1 = Math.max(r.getRow(), L.ntuStart), r2 = Math.min(r.getLastRow(), L.ntuEnd);
-    if (r2 >= r1) fillPosThu_(sh, r1, r2);
-  } catch (x) {}
+    if (touchesCust) sortCustRows_(sh, L);
+    if (touchesNtu) {
+      var r1 = Math.max(r.getRow(), L.ntuStart), r2 = Math.min(r.getLastRow(), L.ntuEnd);
+      if (r2 >= r1) fillPosThu_(sh, r1, r2);
+    }
+  } finally { lock.releaseLock(); }
 }
 
 function fillPosThu_(sh, r1, r2) {
@@ -77,7 +84,10 @@ function doGet(e) {
     if (!e || !e.parameter || e.parameter.token !== CFG.TOKEN) return out_({ok: false, error: 'auth'});
     var sh = SpreadsheetApp.getActive().getSheetByName(CFG.SHEET);
     if (!sh) return out_({ok: false, error: 'Không thấy tab ' + CFG.SHEET});
-    return out_({ok: true, data: read_(sh)});
+    var lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+    try { return out_({ok: true, data: read_(sh)}); }
+    finally { lock.releaseLock(); }
   } catch (err) {
     return out_({ok: false, error: String(err && err.message || err)});
   }
@@ -158,7 +168,7 @@ function num_(v) {
 function norm_(v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); }
 
 function read_(sh) {
-  var L = layout_(sh), data = {month: L.monthCell ? L.monthCell[2] : '', s: {}, cust: [], ntu: []};
+  var L = layout_(sh), ids = readCustIds_(sh, L), data = {month: L.monthCell ? L.monthCell[2] : '', s: {}, cust: [], ntu: []};
   var k, r;
   for (k in SETTINGS) {
     var row = L.labels[k];
@@ -174,7 +184,7 @@ function read_(sh) {
       /* "Thu chỉ tính POS": C và D trống, cột E là số (kiểu Ngoại lệ luôn là số, các kiểu khác là số nhập tay không có công thức) */
       var isX = (kind === NL || !cfm[r][0]) && num_(a[4]) !== '' && a[2] === '' && a[3] === '';
       if (String(a[0]).trim() === '' && a[2] === '' && a[3] === '' && !isX) continue;
-      data.cust.push({row: L.custStart + r, n: String(a[0]), k: kind, cof: num_(a[2]), non: num_(a[3]), pe: kind === NL || isX ? num_(a[4]) : '', x: isX ? 1 : ''});
+      data.cust.push({row: L.custStart + r, sid: ids[L.custStart + r - 8] || '', n: String(a[0]), k: kind, cof: num_(a[2]), non: num_(a[3]), pe: kind === NL || isX ? num_(a[4]) : '', x: isX ? 1 : ''});
     }
   }
   if (L.ntuEnd >= L.ntuStart) {
@@ -186,6 +196,115 @@ function read_(sh) {
     }
   }
   return data;
+}
+
+
+/* Fixed customer zone: A8:E60 only. Column E formula remains anchored to the destination row. */
+var CUST_SORT_START = 8, CUST_SORT_END = 60, CUST_SORT_COUNT = 53;
+function custIdKey_(sh) {
+  return 'HANT_CUST_UIDS_V1_' + sh.getParent().getId() + '_' + sh.getSheetId();
+}
+function occupiedCust_(a, formulaE) {
+  var eManual = !formulaE && a[4] !== '' && a[4] != null;
+  return norm_(a[0]) !== '' || a[2] !== '' || a[3] !== '' || eManual;
+}
+function custIdsStore_(sh, ids) {
+  PropertiesService.getScriptProperties().setProperty(custIdKey_(sh), JSON.stringify(ids));
+}
+function readCustIds_(sh, L) {
+  /* Do not issue unstable identities if the table shape doesn't fit the fixed range. */
+  if (L.custStart !== CUST_SORT_START || L.custEnd < CUST_SORT_END)
+    throw new Error('Vùng MIX không đúng A8:E60; dừng để bảo vệ bảng');
+  var raw = PropertiesService.getScriptProperties().getProperty(custIdKey_(sh));
+  var ids;
+  try { ids = raw ? JSON.parse(raw) : []; } catch (e) { ids = []; }
+  if (!Array.isArray(ids) || ids.length !== CUST_SORT_COUNT) ids = Array(CUST_SORT_COUNT).fill('');
+  var v = sh.getRange(CUST_SORT_START, 1, CUST_SORT_COUNT, 5).getValues(),
+      fe = sh.getRange(CUST_SORT_START, 5, CUST_SORT_COUNT, 1).getFormulasR1C1();
+  var changed = false;
+  for (var i = 0; i < ids.length; i++) {
+    var found = occupiedCust_(v[i], fe[i][0]);
+    if (found && !ids[i]) { ids[i] = Utilities.getUuid(); changed = true; }
+    if (!found && ids[i]) { ids[i] = ''; changed = true; }
+  }
+  if (changed || !raw) custIdsStore_(sh, ids);
+  return ids;
+}
+function findCustSidRow_(ids, sid) {
+  if (!sid) return 0;
+  var i = ids.indexOf(sid);
+  return i < 0 ? 0 : CUST_SORT_START + i;
+}
+function sortCustRows_(sh, L) {
+  if (L.custStart !== CUST_SORT_START || L.custEnd < CUST_SORT_END)
+    throw new Error('Vùng khách hàng không đúng hàng 8–60; không sắp xếp');
+  var rg = sh.getRange(8, 1, 53, 5),
+      vals = rg.getValues(), formulas = rg.getFormulasR1C1(),
+      notes = rg.getNotes(), ids = readCustIds_(sh, L), items = [], i, j;
+  var template = '', invalid = [];
+  for (i = 0; i < CUST_SORT_COUNT; i++) {
+    for (j = 0; j < 4; j++) {
+      if (formulas[i][j]) invalid.push('Công thức ở ' + (8 + i) + ':' + (j + 1));
+    }
+    if (formulas[i][4] && !template) template = formulas[i][4];
+    if (occupiedCust_(vals[i], formulas[i][4])) {
+      var k = norm_(vals[i][1]) || 'Thu kỳ';
+      if (k !== 'Thu kỳ' && k !== 'Thu quá hạn' && k !== NL && !/^Thanh lý/i.test(k))
+        invalid.push('Loại thu chưa nhận diện ở hàng ' + (8 + i) + ': ' + k);
+      items.push({
+        source: i, id: ids[i], kind: k, group: grp_(k),
+        vals: vals[i].slice(), notes: notes[i].slice(),
+        manualE: !formulas[i][4] && vals[i][4] !== '' && vals[i][4] != null
+      });
+    }
+  }
+  if (invalid.length) throw new Error('Ngừng sắp xếp để bảo vệ dữ liệu: ' + invalid.slice(0, 4).join('; '));
+  var desired = Array(CUST_SORT_COUNT).fill(null), next = 0;
+  items.filter(function(x){return x.group === 3}).sort(function(a,b){return a.source-b.source})
+    .forEach(function(x){desired[next++] = x});
+  var bottom = CUST_SORT_COUNT - 1;
+  items.filter(function(x){return x.group !== 3}).sort(function(a,b){
+    return a.group - b.group || b.source-a.source;
+  }).forEach(function(x){desired[bottom--] = x});
+  if (next > bottom + 1) throw new Error('Không đủ dòng trống để sắp xếp');
+  var changed = false, moves = {}, idsNext = [], dest = [], notesNext = [];
+  for (i = 0; i < CUST_SORT_COUNT; i++) {
+    var src = desired[i], old = vals[i];
+    idsNext.push(src ? src.id : '');
+    if (src) {
+      dest.push(src.vals.slice(0,4));
+      notesNext.push(src.notes.slice(0,4));
+      moves[8 + src.source] = 8 + i;
+      if (src.source !== i) changed = true;
+    } else {
+      dest.push(['','','','']);
+      notesNext.push(['','','','']);
+      if (occupiedCust_(old, formulas[i][4])) changed = true;
+    }
+  }
+  if (!changed) return {moves: moves};
+  /* Move only A:D data and notes. Do not move formulas or other sheet regions. */
+  sh.getRange(8, 1, 53, 4).setValues(dest);
+  sh.getRange(8, 1, 53, 4).setNotes(notesNext);
+  for (i = 0; i < CUST_SORT_COUNT; i++) {
+    var target = desired[i], cell = sh.getRange(8+i, 5);
+    if (target && target.manualE) {
+      if (formulas[i][4] || vals[i][4] !== target.vals[4]) cell.setValue(target.vals[4]);
+    } else if (!formulas[i][4]) {
+      if (template) cell.setFormulaR1C1(template);
+      else if (vals[i][4] !== '' && vals[i][4] != null) cell.clearContent();
+    }
+  }
+  custIdsStore_(sh, idsNext);
+  return {moves: moves};
+}
+/* One-click reconciliation for historical rows. This is opt-in for a first run. */
+function sortCustNow() {
+  var sh = SpreadsheetApp.getActive().getSheetByName(CFG.SHEET);
+  if (!sh) throw new Error('Không có tab MIX');
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { return sortCustRows_(sh, layout_(sh)); }
+  finally { lock.releaseLock(); }
 }
 
 /* ---- chọn dòng trống theo quy tắc ---- */
@@ -281,15 +400,16 @@ function findNtuRow_(sh, L, hd, hint) {
 }
 
 function apply_(sh, patches) {
-  var L = layout_(sh), map = {}, skipped = 0, i, p, tpl = peTemplate_(sh, L), f, row;
+  var L = layout_(sh), ids = readCustIds_(sh, L), map = {}, added = {}, skipped = 0, i, p, tpl = peTemplate_(sh, L), f, row, custTouched = false;
   for (i = 0; i < patches.length; i++) {
     p = patches[i];
     if (p.t === 'u') {
       if (p.l === 'cust') {
-        row = p.row;
-        if (!(row >= L.custStart && row <= L.custEnd) || (p.exp !== undefined && norm_(sh.getRange(row, 1).getValue()) !== norm_(p.exp))) { skipped++; continue; }
+        row = p.sid ? findCustSidRow_(ids, p.sid) : p.row;
+        if (!(row >= CUST_SORT_START && row <= CUST_SORT_END) ||
+            (p.exp !== undefined && norm_(sh.getRange(row, 1).getValue()) !== norm_(p.exp))) { skipped++; continue; }
         for (f in p.f) setField_(sh, 'cust', row, f, p.f[f]);
-        finalizeRow_(sh, L, row, p.f, tpl);
+        finalizeRow_(sh, L, row, p.f, tpl); custTouched = true;
       } else {
         row = findNtuRow_(sh, L, p.hd, p.row);
         if (!row) { skipped++; continue; }
@@ -310,7 +430,7 @@ function apply_(sh, patches) {
       sh.getRange(row, CUST.k).setValue(String(p.f.k || 'Thu kỳ'));
       for (f in p.f) setField_(sh, 'cust', row, f, p.f[f]);
       finalizeRow_(sh, L, row, p.f, tpl);
-      map[p.tmp] = row;
+      added[p.tmp] = row; custTouched = true;
     } else if (p.t === 'd') {
       if (p.l === 'ntu') {
         row = findNtuRow_(sh, L, p.hd, p.row);
@@ -319,17 +439,26 @@ function apply_(sh, patches) {
         sh.getRange(row, 17, 1, 1).clearContent(); /* Q; giữ công thức O, P */
         continue;
       }
-      row = p.row;
-      if (!(row >= L.custStart && row <= L.custEnd) || (p.exp !== undefined && norm_(sh.getRange(row, 1).getValue()) !== norm_(p.exp))) { skipped++; continue; }
+      row = p.sid ? findCustSidRow_(ids, p.sid) : p.row;
+      if (!(row >= CUST_SORT_START && row <= CUST_SORT_END) ||
+          (p.exp !== undefined && norm_(sh.getRange(row, 1).getValue()) !== norm_(p.exp))) { skipped++; continue; }
       sh.getRange(row, CUST.cof, 1, 2).clearContent();
       if (p.full) { sh.getRange(row, CUST.n).clearContent(); sh.getRange(row, CUST.k).setValue('Thu kỳ'); }
-      finalizeRow_(sh, L, row, {pe: '', x: ''}, tpl);
+      finalizeRow_(sh, L, row, {pe: '', x: ''}, tpl); custTouched = true;
     } else if (p.t === 's') {
       var lr = L.labels[p.k];
       if (lr) {
         var cell = sh.getRange(lr, 2);
         if (p.v === '' || p.v == null) cell.clearContent(); else cell.setValue(Number(p.v));
       }
+    }
+  }
+  if (custTouched) {
+    var ordered = sortCustRows_(sh, L);
+    var fresh = readCustIds_(sh, L);
+    for (var tmp in added) {
+      var at = ordered.moves[added[tmp]];
+      map[tmp] = at == null ? added[tmp] : at;
     }
   }
   if (patches.length) { fillPosThu_(sh, L.ntuStart, L.ntuEnd); sortNtu_(sh, L); }
