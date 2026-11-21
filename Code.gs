@@ -132,6 +132,15 @@ function doPost(e) {
     lock.waitLock(20000);
     var sh = SpreadsheetApp.getActive().getSheetByName(CFG.SHEET);
     if (!sh) return out_({ok: false, error: 'Không thấy tab ' + CFG.SHEET});
+    var generation = monthGeneration_(sh);
+    if (body.generation !== generation)
+      return out_({ok: false, error: 'Tháng đã đổi hoặc ứng dụng chưa tải dữ liệu mới. Hãy tải lại trước khi ghi.'});
+    if (body.action === 'resetMonth' && body.confirm === 'RESET_MONTH') {
+      var reset = resetMonth_(sh);
+      SpreadsheetApp.flush();
+      return out_({ok: true, reset: true, backupSheet: reset.backupSheet, data: read_(sh)});
+    }
+    if (body.action) return out_({ok: false, error: 'Thao tác không hợp lệ'});
     var res = apply_(sh, body.patches || []);
     SpreadsheetApp.flush();
     return out_({ok: true, map: res.map, skipped: res.skipped, data: read_(sh)});
@@ -140,6 +149,66 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+
+/* Month generation prevents an offline/stale browser from restoring last month's amounts. */
+function monthGenerationKey_(sh) {
+  return 'HANT_MONTH_GEN_' + sh.getParent().getId() + '_' + sh.getSheetId();
+}
+function monthGeneration_(sh) {
+  return PropertiesService.getScriptProperties().getProperty(monthGenerationKey_(sh)) || 'initial';
+}
+function resetMonth_(sh) {
+  var L = layout_(sh);
+  if (L.custStart !== 8 || L.custEnd !== 60)
+    throw new Error('Vùng thu tiền không đúng A8:E60; Reset bị chặn');
+  if (L.ntuStart !== 31 || L.ntuEnd < 31 || L.ntuEnd > 60)
+    throw new Error('Vùng NTU không đúng mẫu; Reset bị chặn');
+  var values = sh.getRange(8,1,53,5).getValues();
+  var formulas = sh.getRange(8,1,53,5).getFormulasR1C1();
+  var template = '';
+  for (var i=0; i<53; i++) {
+    for (var j=0; j<4; j++) if (formulas[i][j])
+      throw new Error('Có công thức tại A:D hàng ' + (8+i) + '; cần kiểm tra trước Reset');
+    if (formulas[i][4]) {
+      if (template && formulas[i][4] !== template)
+        throw new Error('Cột E có nhiều mẫu công thức; cần kiểm tra trước Reset');
+      template = formulas[i][4];
+    }
+  }
+  if (!template) throw new Error('Không tìm được công thức chuẩn của POS quy đổi cột E');
+  var count = L.ntuEnd-L.ntuStart+1;
+  var inputColumns = [7,8,9,10,11,12,13,14,17]; /* G:N and Q, excluding O,P */
+  var needsClear = [];
+  for (var c=0;c<inputColumns.length;c++) {
+    var col = inputColumns[c];
+    var cf = sh.getRange(L.ntuStart,col,count,1).getFormulasR1C1();
+    for (var rr=0;rr<count;rr++) if (!cf[rr][0]) needsClear.push([L.ntuStart+rr,col]);
+  }
+  var ss=sh.getParent();
+  var backup=sh.copyTo(ss);
+  var timestamp=Utilities.formatDate(new Date(),Session.getScriptTimeZone(),'yyyyMMdd-HHmmss');
+  backup.setName('BACKUP MIX '+timestamp);
+  backup.hideSheet();
+  /* Snapshot safely created before all destructive changes. */
+  try {
+    sh.getRange(8,2,53,1).setValue('Thu kỳ');
+    sh.getRange(8,3,53,2).clearContent();
+    for (i=0;i<53;i++) if (!formulas[i][4])
+      sh.getRange(8+i,5).setFormulaR1C1(template);
+    for (i=0;i<needsClear.length;i++)
+      sh.getRange(needsClear[i][0],needsClear[i][1]).clearContent();
+    ['tCOF','tNON','tNTU','ntuOK'].forEach(function(k){
+      if (!L.labels[k]) throw new Error('Thiếu Target '+k);
+      sh.getRange(L.labels[k],2).clearContent();
+    });
+    PropertiesService.getScriptProperties().setProperty(monthGenerationKey_(sh), Utilities.getUuid());
+    SpreadsheetApp.flush();
+  } catch(err) {
+    throw new Error('Reset chưa hoàn tất; bản sao lưu ở sheet '+backup.getName()+'. Lỗi: '+String(err.message||err));
+  }
+  return {backupSheet:backup.getName()};
 }
 
 /* ---- tìm vị trí các khối trong tab ---- */
@@ -199,7 +268,7 @@ function num_(v) {
 function norm_(v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); }
 
 function read_(sh) {
-  var L = layout_(sh), ids = readCustIds_(sh, L), data = {month: L.monthCell ? L.monthCell[2] : '', s: {}, cust: [], ntu: []};
+  var L = layout_(sh), ids = readCustIds_(sh, L), data = {generation: monthGeneration_(sh),month: L.monthCell ? L.monthCell[2] : '', s: {}, cust: [], ntu: []};
   var k, r;
   for (k in SETTINGS) {
     var row = L.labels[k];
@@ -292,7 +361,7 @@ function sortCustRows_(sh, L) {
     }
     if (occupiedCust_(vals[i], formulas[i][4])) {
       var k = norm_(vals[i][1]) || 'Thu kỳ';
-      if (k !== 'Thu kỳ' && k !== 'Thu quá hạn' && k !== NL && !/^Thanh lý/i.test(k))
+      if (k !== 'Thu kỳ' && k !== 'Thu 1.0' && k !== 'Thu quá hạn' && k !== NL && !/^Thanh lý/i.test(k))
         invalid.push('Loại thu chưa nhận diện ở hàng ' + (8 + i) + ': ' + k);
       items.push({
         source: i, id: ids[i], kind: k, group: grp_(k),
@@ -303,10 +372,10 @@ function sortCustRows_(sh, L) {
   }
   if (invalid.length) throw new Error('Ngừng sắp xếp để bảo vệ dữ liệu: ' + invalid.slice(0, 4).join('; '));
   var desired = Array(CUST_SORT_COUNT).fill(null), next = 0;
-  items.filter(function(x){return x.group === 3}).sort(function(a,b){return a.source-b.source})
+  items.filter(function(x){return x.group === 4}).sort(function(a,b){return a.source-b.source})
     .forEach(function(x){desired[next++] = x});
   var bottom = CUST_SORT_COUNT - 1;
-  items.filter(function(x){return x.group !== 3}).sort(function(a,b){
+  items.filter(function(x){return x.group !== 4}).sort(function(a,b){
     return a.group - b.group || b.source-a.source;
   }).forEach(function(x){desired[bottom--] = x});
   if (next > bottom + 1) throw new Error('Không đủ dòng trống để sắp xếp');
@@ -376,7 +445,8 @@ function grp_(kind) {
   if (/^Thanh lý/i.test(kind)) return 0;
   if (kind === 'Thu quá hạn') return 1;
   if (kind === NL) return 2;
-  return 3; /* Thu kỳ */
+  if (kind === 'Thu 1.0') return 3;
+  return 4; /* Thu kỳ */
 }
 
 function pickCustRow_(sh, L, kind) {
@@ -386,7 +456,7 @@ function pickCustRow_(sh, L, kind) {
   var formulasE = sh.getRange(L.custStart, CUST.pe, n, 1).getFormulasR1C1();
   function free(i) { return !occupiedCust_(v[i], formulasE[i][0]); }
   var g = grp_(kind), i;
-  if (g === 3) {
+  if (g === 4) {
     for (i = 0; i < n; i++) if (free(i)) return L.custStart + i;
   } else {
     /* từ dưới lên; Thu quá hạn nằm trên Thanh lý, Ngoại lệ nằm trên Thu quá hạn */
