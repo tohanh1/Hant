@@ -69,8 +69,14 @@ function handleMixPaymentEdit(e) {
   if (sh.getName() !== CFG.SHEET) return;
   var r = e.range;
   if (r.getRow() > 60 || r.getLastRow() < 8 || r.getLastColumn() < 1 || r.getColumn() > 5) return;
-  /* On name-only edits, don't move the row before the user enters amount/type. */
-  if (r.getColumn() === 1 && r.getLastColumn() === 1) return;
+  /* If a single record is still being entered, don't move it under the cursor. */
+  if (r.getRow() === r.getLastRow()) {
+    var oneRow = sh.getRange(r.getRow(), 1, 1, 5).getValues()[0];
+    var oneFormula = sh.getRange(r.getRow(), 5).getFormulaR1C1();
+    var hasAmount = oneRow[2] !== '' || oneRow[3] !== '' ||
+      (!oneFormula && oneRow[4] !== '' && oneRow[4] != null);
+    if (!norm_(oneRow[0]) || !hasAmount) return;
+  }
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) throw new Error('Bảng đang đồng bộ; thử nhập lại sau');
   try {
