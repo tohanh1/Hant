@@ -327,6 +327,19 @@ html,body,button,a,input,select,textarea,summary,label,.row,.card,.collect,.ntu-
 
 /* Emphasize the overall collection target percentage without changing KPI logic */
 .bt i.target-money-highlight{display:inline-block;justify-self:start;width:max-content;max-width:100%;font-weight:800;color:var(--key);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:13px;line-height:1.3;font-variant-numeric:tabular-nums}
+
+/* HANT Pro Thu tiền — highlight collected money + COF/NON, de-emphasize converted POS */
+@media(max-width:699px){
+  .collect-head{grid-template-columns:minmax(0,1fr) minmax(0,auto) 12px}
+  .collect-money{display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:0}
+  .collect-amount-line{display:flex;align-items:center;justify-content:flex-end;gap:6px;max-width:100%;flex-wrap:wrap}
+  .collect-group{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:6px;padding:2px 6px;font-size:10px;font-weight:800;letter-spacing:.03em}
+  .collect-group.is-cof{background:var(--info-bg);color:var(--info)}
+  .collect-group.is-non{background:var(--amber-bg);color:var(--amber)}
+  .collect-group.is-special{background:var(--surface2);color:var(--muted);font-size:9px}
+  .collect-money .collect-amount{color:var(--ink);font-size:15px;font-weight:850;line-height:1.2;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .collect-money .collect-pos{color:var(--muted);font-size:10px;font-weight:400;line-height:1.3;text-align:right;overflow-wrap:anywhere}
+}
 </style>
 </head>
 <body>
@@ -640,9 +653,20 @@ function compPrev(){
    '<div><span>Tổng hoàn thành</span><b>'+pct(B.total)+d(A.total,B.total,function(v){return pct(v)})+'</b></div>'+
    '<div><span>Thực nhận sau thuế</span><b>'+money(B.thuc)+d(A.thuc,B.thuc,money)+'</b></div></div>';
 }
+function collectSummary(c){
+  var summary='';
+  if(c.x){
+    summary='<span class="collect-amount-line"><span class="collect-group is-special">CHỈ TÍNH POS</span><b class="collect-amount">'+(has(c.xa)?money(num(c.xa)):'Chưa có số tiền')+'</b></span>';
+  }else{
+    var cof=num(c.cof),non=num(c.non);
+    if(cof||(!cof&&!non))summary+='<span class="collect-amount-line"><span class="collect-group is-cof">COF</span><b class="collect-amount">'+money(cof)+'</b></span>';
+    if(non||(!cof&&!non))summary+='<span class="collect-amount-line"><span class="collect-group is-non">NON</span><b class="collect-amount">'+money(non)+'</b></span>';
+  }
+  return summary+'<span class="collect-pos">POS quy đổi: '+money(posOf(c))+'</span>';
+}
 function custRow(c){
   var h=got(c),k=kind(c.k),isNL=c.k===NL&&!c.x,he=isNL?heff(c):null;
-  return '<div class="collect"><button type="button" class="collect-head" aria-expanded="false"><span class="collect-name"><b>'+esc(c.n||'(Chưa có tên)')+'</b><small>'+esc(c.k||'Thu kỳ')+'</small></span><span class="collect-money"><b data-pos-head>'+money(posOf(c))+'</b><small>COF '+grp(c.cof||0)+' · NON '+grp(c.non||0)+'</small></span><span aria-hidden="true">⌄</span></button><div class="row'+(c.x?' px':h?' hit':'')+'" data-l="cust" data-id="'+c.id+'">'+
+  return '<div class="collect"><button type="button" class="collect-head" aria-expanded="false"><span class="collect-name"><b>'+esc(c.n||'(Chưa có tên)')+'</b><small>'+esc(c.k||'Thu kỳ')+'</small></span><span class="collect-money">'+collectSummary(c)+'</span><span aria-hidden="true">⌄</span></button><div class="row'+(c.x?' px':h?' hit':'')+'" data-l="cust" data-id="'+c.id+'">'+
    '<div class="head"><input type="text" data-f="n" value="'+esc(c.n)+'" placeholder="Tên khách hàng" aria-label="Tên khách hàng"><button class="btn sm danger" data-act="del" type="button" aria-label="Xóa dòng">'+((c.row!=null&&!(S.mine&&S.mine[c.row]))?'Xóa số thu':'Xóa')+'</button></div>'+
    '<select data-f="k" aria-label="Kiểu thu">'+kindOpts(c.k)+'</select>'+
    (c.x?'<div class="pxtag">Chỉ tính POS · không tính KPI</div><div class="two"><label class="f">Số tiền (đ)<input type="text" inputmode="numeric" class="num" data-f="xa" data-m="1" value="'+grp(c.xa)+'"></label><label class="f">Hệ số<select data-f="xh" aria-label="Hệ số">'+(has(c.xh)?'':'<option value="" selected>Chưa rõ</option>')+coefOpts(c.xh)+'</select></label></div>'+(!has(c.xa)&&num(c.pe)>0?'<div class="mini">Số tiền gốc và hệ số không lưu trên Sheet, chỉ có POS quy đổi.</div>':''):'')+
@@ -676,7 +700,7 @@ function updThu(){
   document.querySelectorAll('.row[data-l=cust]').forEach(function(r){
     var c=S.cust.filter(function(x){return x.id===r.dataset.id})[0];if(!c)return;
     r.classList.toggle('hit',got(c)&&!c.x);r.classList.toggle('px',!!c.x);
-    r.querySelector('[data-o=pos]').textContent=money(posOf(c));var panel=r.closest('.collect');if(panel){panel.querySelector('[data-pos-head]').textContent=money(posOf(c));panel.querySelector('.collect-money small').textContent='COF '+grp(c.cof||0)+' · NON '+grp(c.non||0);panel.querySelector('.collect-name b').textContent=c.n||'(Chưa có tên)'}
+    r.querySelector('[data-o=pos]').textContent=money(posOf(c));var panel=r.closest('.collect');if(panel){panel.querySelector('.collect-money').innerHTML=collectSummary(c);panel.querySelector('.collect-name b').textContent=c.n||'(Chưa có tên)'}
   });
 }
 /* NTU */
