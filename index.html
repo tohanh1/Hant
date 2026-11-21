@@ -585,6 +585,7 @@ function sync(){
         }else if(!x.sid&&x.row!=null&&S.mine[x.row])newMine[x.row]=1;
       });
       S.mine=newMine;
+      S.cust.sort(function(a,b){return (a.row==null?1e9:a.row)-(b.row==null?1e9:b.row)});
       var bh={};base.ntu.forEach(function(x){bh[String(x.hd).trim()]=x.row});S.ntu.forEach(function(x){var h=String(x.hd).trim();if(bh[h]!=null)x.row=bh[h]});
       wr(BKEY,base);save();
       if(!focusedInput())render();else dirtyRender=true;
