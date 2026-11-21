@@ -265,11 +265,17 @@ function sortCustRows_(sh, L) {
     throw new Error('Vùng khách hàng không đúng hàng 8–60; không sắp xếp');
   var rg = sh.getRange(8, 1, 53, 5),
       vals = rg.getValues(), formulas = rg.getFormulasR1C1(),
-      notes = rg.getNotes(), ids = readCustIds_(sh, L), items = [], i, j;
+      notes = rg.getNotes(), rich = rg.getRichTextValues(),
+      ids = readCustIds_(sh, L), items = [], i, j;
   var template = '', invalid = [];
   for (i = 0; i < CUST_SORT_COUNT; i++) {
-    for (j = 0; j < 5; j++) if (notes[i][j])
-      invalid.push('Ghi chú ô ở hàng ' + (8 + i) + '; cần kiểm tra trước khi di chuyển');
+    for (j = 0; j < 5; j++) {
+      if (notes[i][j]) invalid.push('Ghi chú ô ở hàng ' + (8 + i) + '; cần kiểm tra trước khi di chuyển');
+      var richCell = rich[i][j];
+      if (richCell && ((richCell.getLinkUrl && richCell.getLinkUrl()) ||
+          (richCell.getRuns && richCell.getRuns().some(function(run){return !!run.getLinkUrl();}))))
+        invalid.push('Liên kết văn bản ở hàng ' + (8 + i) + ', cột ' + (j+1));
+    }
     for (j = 0; j < 4; j++) {
       if (formulas[i][j]) invalid.push('Công thức ở ' + (8 + i) + ':' + (j + 1));
     }
@@ -366,8 +372,9 @@ function grp_(kind) {
 function pickCustRow_(sh, L, kind) {
   var n = L.custEnd - L.custStart + 1;
   if (n <= 0) throw new Error('Bảng khách hàng trống');
-  var v = sh.getRange(L.custStart, 1, n, 4).getValues();
-  function free(i) { return norm_(v[i][0]) === '' && v[i][2] === '' && v[i][3] === ''; }
+  var v = sh.getRange(L.custStart, 1, n, 5).getValues();
+  var formulasE = sh.getRange(L.custStart, CUST.pe, n, 1).getFormulasR1C1();
+  function free(i) { return !occupiedCust_(v[i], formulasE[i][0]); }
   var g = grp_(kind), i;
   if (g === 3) {
     for (i = 0; i < n; i++) if (free(i)) return L.custStart + i;
