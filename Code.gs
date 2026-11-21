@@ -33,29 +33,54 @@ function out_(o) {
 
 function onOpen() {
   try {
-    SpreadsheetApp.getUi().createMenu('HANH KPI').addItem('Sắp xếp NTU theo POS tăng dần', 'sortNtuNow').addItem('Sắp xếp thu tiền hàng 8–60', 'sortCustNow').addToUi();
+    SpreadsheetApp.getUi().createMenu('HANH KPI').addItem('Sắp xếp NTU theo POS tăng dần', 'sortNtuNow').addItem('Bật tự sắp xếp thu tiền 8–60', 'installMixAutoSortTrigger').addItem('Sắp xếp thu tiền ngay', 'sortCustNow').addToUi();
   } catch (e) {}
 }
 
 /* POS đã thu (cột J) tự điền = POS (cột I) khi Tiền thu (K) > 0 và K >= Mindue (L); ngược lại để trống. Chạy khi bạn tự nhập trên Sheet. */
 function onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    var sh = e.range.getSheet();
+    if (sh.getName() !== CFG.SHEET) return;
+    var r = e.range;
+    if (r.getLastColumn() < 9 || r.getColumn() > 12) return;
+    var L = layout_(sh);
+    var r1 = Math.max(r.getRow(), L.ntuStart), r2 = Math.min(r.getLastRow(), L.ntuEnd);
+    if (r2 >= r1) fillPosThu_(sh, r1, r2);
+  } catch (x) {}
+}
+
+
+/* Run once from Apps Script Editor to enable authorized Sheet edit sorting. */
+function installMixAutoSortTrigger() {
+  var ss = SpreadsheetApp.getActive();
+  if (!ss || !ss.getSheetByName(CFG.SHEET)) throw new Error('Không tìm thấy tab ' + CFG.SHEET);
+  var fn = 'handleMixPaymentEdit';
+  var exists = ScriptApp.getProjectTriggers().some(function(t){
+    return t.getHandlerFunction() === fn && t.getEventType() === ScriptApp.EventType.ON_EDIT;
+  });
+  if (!exists) ScriptApp.newTrigger(fn).forSpreadsheet(ss).onEdit().create();
+  ss.toast('Đã bật tự động xếp khoản thu từ hàng 8 đến hàng 60', 'HANH KPI', 5);
+}
+function handleMixPaymentEdit(e) {
   if (!e || !e.range) return;
   var sh = e.range.getSheet();
   if (sh.getName() !== CFG.SHEET) return;
-  var r = e.range, lock = LockService.getScriptLock();
-  var touchesCust = r.getRow() <= 60 && r.getLastRow() >= 8 &&
-    r.getLastColumn() >= 2 && r.getColumn() <= 5; /* avoid moving a row while just typing its name */
-  var touchesNtu = r.getLastColumn() >= 9 && r.getColumn() <= 12;
-  if (!touchesCust && !touchesNtu) return;
-  if (!lock.tryLock(20000)) throw new Error('Không lấy được khóa sắp xếp; hãy thử lại');
+  var r = e.range;
+  if (r.getRow() > 60 || r.getLastRow() < 8 || r.getLastColumn() < 1 || r.getColumn() > 5) return;
+  /* On name-only edits, don't move the row before the user enters amount/type. */
+  if (r.getColumn() === 1 && r.getLastColumn() === 1) return;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('Bảng đang đồng bộ; thử nhập lại sau');
   try {
-    var L = layout_(sh);
-    if (touchesCust) sortCustRows_(sh, L);
-    if (touchesNtu) {
-      var r1 = Math.max(r.getRow(), L.ntuStart), r2 = Math.min(r.getLastRow(), L.ntuEnd);
-      if (r2 >= r1) fillPosThu_(sh, r1, r2);
-    }
-  } finally { lock.releaseLock(); }
+    sortCustRows_(sh, layout_(sh));
+  } catch (err) {
+    try { sh.getParent().toast('Chưa sắp xếp: ' + String(err.message||err), 'HANH KPI', 8); } catch(x){}
+    throw err;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function fillPosThu_(sh, r1, r2) {
