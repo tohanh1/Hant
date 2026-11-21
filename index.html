@@ -895,6 +895,9 @@ var armed={};
 function resetMonthFromApp(){
   if(!cfg.on||!cfg.url||!cfg.token||!navigator.onLine){toast('Cần kết nối Google Sheets để Reset an toàn');return}
   if(syncing){toast('Đang đồng bộ, thử lại khi hoàn tất');return}
+  if(!base){toast('Hãy đồng bộ Google Sheets một lần trước khi Reset');schedSync(100);return}
+  var pending=makePatches(base,{cust:S.cust,ntu:S.ntu,s:pick(S,SF)});
+  if(pending.length){toast('Còn dữ liệu chưa đồng bộ. Hãy đồng bộ trước khi Reset');schedSync(100);return}
   syncing=true;setStt('busy');
   try {
     var blob=new Blob([JSON.stringify(S)],{type:'application/json'});
