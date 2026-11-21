@@ -310,20 +310,40 @@ function sortCustRows_(sh, L) {
     }
   }
   if (!changed) return {moves: moves};
-  /* Move only A:D data and notes. Do not move formulas or other sheet regions. */
-  sh.getRange(8, 1, 53, 4).setValues(dest);
-  sh.getRange(8, 1, 53, 4).setNotes(notesNext);
-  for (i = 0; i < CUST_SORT_COUNT; i++) {
-    var target = desired[i], cell = sh.getRange(8+i, 5);
-    if (target && target.manualE) {
-      if (formulas[i][4] || vals[i][4] !== target.vals[4]) cell.setValue(target.vals[4]);
-    } else if (!formulas[i][4]) {
-      if (template) cell.setFormulaR1C1(template);
-      else if (vals[i][4] !== '' && vals[i][4] != null) cell.clearContent();
+  var dataRange = sh.getRange(8, 1, 53, 4);
+  /* Save an in-memory snapshot; roll back if an API write fails mid-sort. */
+  try {
+    dataRange.setValues(dest);
+    dataRange.setNotes(notesNext);
+    for (i = 0; i < CUST_SORT_COUNT; i++) {
+      var target = desired[i], cell = sh.getRange(8+i, 5);
+      if (target && target.manualE) {
+        if (formulas[i][4] || vals[i][4] !== target.vals[4]) cell.setValue(target.vals[4]);
+      } else if (!formulas[i][4]) {
+        if (template) cell.setFormulaR1C1(template);
+        else if (vals[i][4] !== '' && vals[i][4] != null) cell.clearContent();
+      }
     }
+    custIdsStore_(sh, idsNext);
+    SpreadsheetApp.flush();
+    return {moves: moves};
+  } catch (err) {
+    try {
+      dataRange.setValues(vals.map(function(v){return v.slice(0,4)}));
+      dataRange.setNotes(notes.map(function(v){return v.slice(0,4)}));
+      for (var ix = 0; ix < CUST_SORT_COUNT; ix++) {
+        var origin = sh.getRange(8+ix, 5);
+        if (formulas[ix][4]) origin.setFormulaR1C1(formulas[ix][4]);
+        else if (vals[ix][4] === '' || vals[ix][4] == null) origin.clearContent();
+        else origin.setValue(vals[ix][4]);
+      }
+      custIdsStore_(sh, ids);
+      SpreadsheetApp.flush();
+    } catch (rollbackError) {
+      throw new Error('Sắp xếp thất bại và khôi phục chưa hoàn tất; cần kiểm tra bản sao lưu. ' + String(rollbackError));
+    }
+    throw err;
   }
-  custIdsStore_(sh, idsNext);
-  return {moves: moves};
 }
 /* One-click reconciliation for historical rows. This is opt-in for a first run. */
 function sortCustNow() {
