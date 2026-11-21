@@ -285,7 +285,11 @@ function sortCustRows_(sh, L) {
     for (j = 0; j < 4; j++) {
       if (formulas[i][j]) invalid.push('Công thức ở ' + (8 + i) + ':' + (j + 1));
     }
-    if (formulas[i][4] && !template) template = formulas[i][4];
+    if (formulas[i][4]) {
+      if (!template) template = formulas[i][4];
+      else if (template !== formulas[i][4])
+        invalid.push('Cột E có công thức khác mẫu ở hàng ' + (8 + i));
+    }
     if (occupiedCust_(vals[i], formulas[i][4])) {
       var k = norm_(vals[i][1]) || 'Thu kỳ';
       if (k !== 'Thu kỳ' && k !== 'Thu quá hạn' && k !== NL && !/^Thanh lý/i.test(k))
