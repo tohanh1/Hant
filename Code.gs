@@ -206,14 +206,14 @@ function custIdKey_(sh) {
 }
 function occupiedCust_(a, formulaE) {
   var eManual = !formulaE && a[4] !== '' && a[4] != null;
-  return norm_(a[0]) !== '' || a[2] !== '' || a[3] !== '' || eManual;
+  return norm_(a[0]) !== '' || a[2] !== '' || a[3] !== '' || eManual || (norm_(a[1]) !== '' && norm_(a[1]) !== 'Thu kỳ');
 }
 function custIdsStore_(sh, ids) {
   PropertiesService.getScriptProperties().setProperty(custIdKey_(sh), JSON.stringify(ids));
 }
 function readCustIds_(sh, L) {
   /* Do not issue unstable identities if the table shape doesn't fit the fixed range. */
-  if (L.custStart !== CUST_SORT_START || L.custEnd < CUST_SORT_END)
+  if (L.custStart !== CUST_SORT_START || L.custEnd !== CUST_SORT_END)
     throw new Error('Vùng MIX không đúng A8:E60; dừng để bảo vệ bảng');
   var raw = PropertiesService.getScriptProperties().getProperty(custIdKey_(sh));
   var ids;
@@ -236,7 +236,7 @@ function findCustSidRow_(ids, sid) {
   return i < 0 ? 0 : CUST_SORT_START + i;
 }
 function sortCustRows_(sh, L) {
-  if (L.custStart !== CUST_SORT_START || L.custEnd < CUST_SORT_END)
+  if (L.custStart !== CUST_SORT_START || L.custEnd !== CUST_SORT_END)
     throw new Error('Vùng khách hàng không đúng hàng 8–60; không sắp xếp');
   var rg = sh.getRange(8, 1, 53, 5),
       vals = rg.getValues(), formulas = rg.getFormulasR1C1(),
@@ -277,7 +277,7 @@ function sortCustRows_(sh, L) {
       moves[8 + src.source] = 8 + i;
       if (src.source !== i) changed = true;
     } else {
-      dest.push(['','','','']);
+      dest.push(['',norm_(vals[i][1]) === 'Thu kỳ' ? 'Thu kỳ' : '','','']);
       notesNext.push(['','','','']);
       if (occupiedCust_(old, formulas[i][4])) changed = true;
     }
@@ -405,7 +405,7 @@ function apply_(sh, patches) {
     p = patches[i];
     if (p.t === 'u') {
       if (p.l === 'cust') {
-        row = p.sid ? findCustSidRow_(ids, p.sid) : p.row;
+        row = p.sid ? findCustSidRow_(ids, p.sid) : 0; /* fail closed for legacy clients */
         if (!(row >= CUST_SORT_START && row <= CUST_SORT_END) ||
             (p.exp !== undefined && norm_(sh.getRange(row, 1).getValue()) !== norm_(p.exp))) { skipped++; continue; }
         for (f in p.f) setField_(sh, 'cust', row, f, p.f[f]);
