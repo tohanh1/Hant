@@ -206,7 +206,7 @@ function custIdKey_(sh) {
 }
 function occupiedCust_(a, formulaE) {
   var eManual = !formulaE && a[4] !== '' && a[4] != null;
-  return norm_(a[0]) !== '' || a[2] !== '' || a[3] !== '' || eManual || (norm_(a[1]) !== '' && norm_(a[1]) !== 'Thu kỳ');
+  return norm_(a[0]) !== '' || a[2] !== '' || a[3] !== '' || eManual; /* B-only cells are sheet template values, not payment records */
 }
 function custIdsStore_(sh, ids) {
   PropertiesService.getScriptProperties().setProperty(custIdKey_(sh), JSON.stringify(ids));
@@ -243,6 +243,8 @@ function sortCustRows_(sh, L) {
       notes = rg.getNotes(), ids = readCustIds_(sh, L), items = [], i, j;
   var template = '', invalid = [];
   for (i = 0; i < CUST_SORT_COUNT; i++) {
+    for (j = 0; j < 5; j++) if (notes[i][j])
+      invalid.push('Ghi chú ô ở hàng ' + (8 + i) + '; cần kiểm tra trước khi di chuyển');
     for (j = 0; j < 4; j++) {
       if (formulas[i][j]) invalid.push('Công thức ở ' + (8 + i) + ':' + (j + 1));
     }
@@ -277,7 +279,7 @@ function sortCustRows_(sh, L) {
       moves[8 + src.source] = 8 + i;
       if (src.source !== i) changed = true;
     } else {
-      dest.push(['',norm_(vals[i][1]) === 'Thu kỳ' ? 'Thu kỳ' : '','','']);
+      dest.push(['',vals[i][1], '', '']); /* preserve the original blank row's kind template */
       notesNext.push(['','','','']);
       if (occupiedCust_(old, formulas[i][4])) changed = true;
     }
