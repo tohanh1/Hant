@@ -1,26 +1,39 @@
-# HANT – Preview: Vàng Champagne + nghiệp vụ HANH KPI gốc
+# HANT – KPI Workspace (mobile champagne edition)
 
-**Bản xem trước nằm trong nhánh** `preview/gold-mobile-original-engine`, chưa thay đổi `main`.
+Phiên bản chính trên nhánh `main` đã được thay bằng giao diện mobile vàng champagne, **sử dụng engine tính KPI và cơ chế đồng bộ từ `tohanh1/hanh-kpi`**.
 
-## Khác biệt so với HANT hiện tại
-- Dùng lại mã nguồn nghiệp vụ gốc `hanh-kpi/main/index.html` thay vì tính lại bằng mô hình HANT MVP.
-- Trang Thu tiền hiển thị mỗi khoản thành một dòng tóm tắt trên điện thoại; chạm để mở chi tiết và chỉnh sửa.
-- Phối màu vàng champagne, trắng ngà; hỗ trợ dark mode.
-- Target NTU (`tNTU`), NTU CIC OK (`ntuOK`) và hồ sơ đạt mindue (`okN`) được giữ tách biệt.
-- Không còn đổi trạng thái "đang đồng bộ" khi đồng bộ nền thành công.
+## Giao diện trên điện thoại
+- Thu tiền: từng khoản thu là một thẻ thu gọn; chạm để mở và sửa thông tin.
+- NTU: Tiền thu vẫn hiển thị; Mindue, POS đã thu (tự điền) và Hệ số trách nhiệm nằm trong phần mở rộng.
+- Dùng `touch-action: manipulation` để hạn chế zoom khi chạm hai lần lên giao diện, nhưng giữ nguyên pinch-to-zoom vì lý do hỗ trợ tiếp cận.
+- Bảng màu chính: vàng champagne `#C99A25`, trắng ngà `#F7F7F5`.
 
-## Tệp đi kèm
-- `index.html`: giao diện preview với engine gốc, chưa thay đổi công thức.
-- `Code.gs`: Apps Script gốc để đối chiếu và triển khai độc lập khi cần, **không tự kết nối Sheet**.
-- `sw.js`: cache tài nguyên tĩnh, bỏ qua URL có query string.
-- `manifest.webmanifest`: khai báo ứng dụng xem trước.
+## Nghiệp vụ
+- Giữ nguyên hàm `calc(s)`, `posOf`, `fixPe`, `fixPos`, các bảng hệ số và cơ chế tạo/ghép thay đổi đồng bộ.
+- `Code.gs` được sao chép không chỉnh sửa từ `hanh-kpi/main`, **chỉ để tham chiếu và triển khai khi người dùng tự chọn**. Nó không tự kết nối Sheet thật.
+- Target NTU (`tNTU`), NTU CIC OK (`ntuOK`) và số hồ sơ đạt mindue được giữ tách biệt theo nghiệp vụ gốc.
+- `sw.js` chỉ cache tài nguyên tĩnh trong cùng origin, bỏ qua URL có query string.
+- Bao gồm `manifest.webmanifest`, `icon.svg` cho PWA.
 
-## Giới hạn và an toàn
-- LocalStorage được tách bằng tiền tố `hant-preview-` để tránh ghi đè dữ liệu HANT MVP.
-- Mặc định chưa có kết nối Google Sheets. Nếu người dùng tự nhập cấu hình đồng bộ vào preview, dữ liệu có thể được ghi lên Sheet thật.
-- Chưa có kiểm thử bằng trình duyệt iPhone, Google Sheets thật hay quy trình đồng bộ nhiều thiết bị.
-- GitHub Pages chưa được xác minh đã bật; nhánh preview **không tự động tạo URL website**.
-- Chỉ merge sau khi hoàn tất thử nghiệm.
+## Lưu trữ, sao lưu và khôi phục
+- Bản này dùng namespace localStorage `hant-preview-...` (được giữ nguyên khi chuyển nhánh preview sang `main`), độc lập với dữ liệu của HANT MVP cũ.
+- **Dữ liệu HANT MVP cũ không tự chuyển sang cấu trúc mới**. Trước khi dùng với số liệu thật, hãy xuất bản sao lưu của ứng dụng cũ và kiểm tra kế hoạch chuyển đổi dữ liệu. Không nhập trực tiếp JSON cũ vào bản mới khi chưa có bộ chuyển đổi.
+- Các thiết lập Google Sheets của ứng dụng cũ không tự được chuyển sang phiên bản này.
+- Tạo bản sao lưu GitHub trước khi thay thế: `backup/hant-before-mobile-ntu-20261112`.
 
-## Mã tham chiếu
-Nguồn logic: https://github.com/tohanh1/hanh-kpi/blob/main/index.html
+## Trạng thái kiểm thử
+- Đã kiểm tra cú pháp JavaScript của `index.html` và `Code.gs`.
+- Đã so sánh các hàm tính toán và tạo patch với preview gốc; không thay đổi.
+- Chưa kiểm thử trực tiếp trên điện thoại thật và chưa xác minh cấu hình GitHub Pages. Trước khi kết nối dữ liệu thật, nên thử nhập liệu và tải file JSON.
+
+## Lưu ý GitHub Pages
+Nếu GitHub Pages hiện đang trỏ nhánh `preview/gold-mobile-original-engine`, nhánh preview đã có cập nhật giao diện NTU. Muốn website dùng nhánh chính mới, vào Settings → Pages và chọn `main`, thư mục `/(root)`.
+
+Nguồn tham chiếu: https://github.com/tohanh1/hanh-kpi
+
+
+## Tự động xếp khoản thu trên MIX 1 NEW (hàng 8–60)
+
+Đã bổ sung xử lý nhập/sửa từ Sheet và HANT Web App. Thu kỳ được dồn từ hàng 8 xuống; Thanh lý, Thu quá hạn, Ngoại lệ được xếp từ hàng 60 lên theo thứ tự nhóm. **Tính năng trong Google Sheet chỉ hoạt động sau khi cập nhật và triển khai lại dự án Apps Script cùng trigger được cấp quyền**; cập nhật GitHub hoặc Pages một mình không đủ.
+
+Hướng dẫn bật, sao lưu, thử nghiệm và khôi phục: [HUONG-DAN-SAP-XEP.md](./HUONG-DAN-SAP-XEP.md).
