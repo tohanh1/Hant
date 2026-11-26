@@ -689,17 +689,26 @@ function kindOpts(sel){
 function coefOf(k,hc,hn){if(k===NL)return[hc,hn];var x=kind(k);return[x[1],x[2]]}
 function pnum(v){var n=parseFloat(String(v).replace(',','.'));return isFinite(n)&&n>=0?n:0}
 function defX(){var cf=coefOf(comp.k,comp.hc,comp.hn);return comp.t==='COF'?cf[0]:cf[1]}
+function awaitingSheetCollection(c){
+  return c.row>=8&&c.row<=60&&String(c.n||'').trim()!==''&&!has(c.cof)&&!has(c.non)&&!c.x;
+}
+function pendingCustomerOptions(){
+  return S.cust.filter(awaitingSheetCollection).map(function(c){
+    var selected=c.id===comp.customerId?' selected':'';
+    return '<option value="'+esc(c.id)+'"'+selected+'>'+esc(c.n)+' · dòng '+c.row+'</option>';
+  }).join('');
+}
 function compHTML(){
-  var cf=coefOf(comp.k,comp.hc,comp.hn),names=S.cust.map(function(c){return c.n}).filter(Boolean);
+  var cf=coefOf(comp.k,comp.hc,comp.hn),pending=pendingCustomerOptions();
   return '<details class="comp" id="comp"'+(compOpen?' open':'')+'><summary class="bbtn">'+svg(IC.pl)+'Nhập phát sinh thu mới</summary><div class="card" style="display:grid;gap:10px;margin-top:8px">'+
    '<label class="f">Kiểu thu<select id="c-k">'+kindOpts(comp.k)+'</select></label>'+
    '<div class="seg" role="group" aria-label="Loại khoản thu"><button type="button" data-ct="COF" aria-pressed="'+(comp.t==='COF')+'">COF · hệ số ×'+dec(cf[0])+'</button><button type="button" data-ct="NON" aria-pressed="'+(comp.t==='NON')+'">NON · hệ số ×'+dec(cf[1])+'</button></div>'+
    (comp.k===NL&&!comp.x?'<div class="grid2"><label class="f">Hệ số COF<input type="text" inputmode="decimal" class="num" id="c-hc" value="'+dec(comp.hc)+'"></label><label class="f">Hệ số NON<input type="text" inputmode="decimal" class="num" id="c-hn" value="'+dec(comp.hn)+'"></label></div>':'')+
-   '<label class="f">Tên khách hàng đóng tiền<input type="text" id="c-name" list="c-names" autocomplete="off" placeholder="Nhập hoặc chọn tên khách hàng" value="'+esc(comp.name)+'"></label>'+
+   '<label class="f">Khách hàng chưa nhập COF/NON<select id="c-customer"'+(pending?'':' disabled')+'><option value="">'+(pending?'Chọn khách hàng từ Google Sheet':'Không có khách hàng phù hợp')+'</option>'+pending+'</select></label>'+
+   '<label class="f">Tên khách hàng đóng tiền<input type="text" id="c-name" autocomplete="off" placeholder="Nhập tên khách hàng" value="'+esc(comp.name)+'"></label>'+
    '<label class="f">Số tiền (đ)<input type="text" inputmode="numeric" class="num" id="c-amt" placeholder="0" value="'+esc(comp.amt)+'"></label>'+
    '<label class="chk"><input type="checkbox" id="c-x"'+(comp.x?' checked':'')+'><span>Không tính KPI, chỉ tính vào POS quy đổi</span></label>'+
    (comp.x?'<label class="f">Hệ số áp dụng cho POS<select id="c-xh">'+coefOpts(comp.xh)+'</select></label>':'')+
-   '<datalist id="c-names">'+names.map(function(n){return '<option value="'+esc(n)+'">'}).join('')+'</datalist>'+
    '<div id="c-prev"></div>'+
    '<button class="btn pri" type="button" data-act="addc">Thêm khoản thu</button></div></details>';
 }
@@ -953,18 +962,23 @@ document.addEventListener('click',function(e){
     nf={hd:'',n:'',pos:'',mind:'',he:''};ntuOpen=false;changed();render();toast('Đã thêm hồ sơ')}
   else if(a==='addc'){
     var amt=num(String(comp.amt).replace(/\D/g,''));if(amt<=0){toast('Nhập số tiền cần thêm');return}
-    pre(true);var nm=String(comp.name).trim().toLowerCase(),tgt=null;
+    var tgt=comp.customerId?S.cust.find(function(c){return c.id===comp.customerId}):null;
+    if(comp.customerId&&(!tgt||!awaitingSheetCollection(tgt))){
+      comp.customerId='';viewThu();toast('Dòng đã thay đổi. Hãy chọn lại khách hàng.');return
+    }
+    pre(true);var nm=String(comp.name).trim().toLowerCase();
+    if(tgt)tgt.k=comp.k;
     if(comp.x){
-      if(nm)S.cust.forEach(function(c){if(!tgt&&String(c.n).trim().toLowerCase()===nm&&c.k===comp.k&&!got(c))tgt=c});
+      if(!tgt&&nm)S.cust.forEach(function(c){if(!tgt&&String(c.n).trim().toLowerCase()===nm&&c.k===comp.k&&!got(c))tgt=c});
       if(!tgt){tgt={id:uid(),row:null,n:comp.name,k:comp.k};S.cust.push(tgt)}
       tgt.x=1;tgt.xa=amt;tgt.xh=num(comp.xh);tgt.cof='';tgt.non='';tgt.pe='';fixPe(tgt);
       logEv('Thêm '+grp(amt)+' chỉ tính POS (không tính KPI) × '+dec(tgt.xh)+' · '+kindLabel(comp.k)+(comp.name?' · '+comp.name:'')+' · POS +'+grp(tgt.pe));
-      comp.amt='';comp.name='';compOpen=false;changed();render();toast('Đã thêm khoản chỉ tính POS');return}
-    if(nm)S.cust.forEach(function(c){if(!tgt&&String(c.n).trim().toLowerCase()===nm&&c.k===comp.k&&!has(c[comp.t==='COF'?'cof':'non']))tgt=c});
+      comp.amt='';comp.name='';comp.customerId='';compOpen=false;changed();render();toast('Đã thêm khoản chỉ tính POS');return}
+    if(!tgt&&nm)S.cust.forEach(function(c){if(!tgt&&String(c.n).trim().toLowerCase()===nm&&c.k===comp.k&&!has(c[comp.t==='COF'?'cof':'non']))tgt=c});
     if(!tgt){tgt={id:uid(),row:null,n:comp.name,k:comp.k,cof:'',non:''};S.cust.push(tgt)}
     logEv('Thêm '+grp(amt)+' '+comp.t+' · '+kindLabel(comp.k)+(comp.name?' · '+comp.name:'')+(tgt.row!=null?' (vào dòng có sẵn)':''));
     tgt[comp.t==='COF'?'cof':'non']=amt;if(comp.k===NL){tgt.hc=comp.hc;tgt.hn=comp.hn}fixPe(tgt);
-    comp.amt='';comp.name='';compOpen=false;changed();render();toast('Đã thêm khoản thu')}
+    comp.amt='';comp.name='';comp.customerId='';compOpen=false;changed();render();toast('Đã thêm khoản thu')}
   else if(a==='sysave'){cfg={url:document.getElementById('sy-url').value.trim(),token:document.getElementById('sy-token').value.trim(),on:true,poll:12000};wr(CKEY,cfg);base=null;wr(BKEY,null);
     if(!cfg.url){toast('Nhập địa chỉ Web App');return}setStt('busy');sync().then(function(){toast(stt==='ok'?'Đã kết nối Google Sheet':'Chưa kết nối được: '+(sync.err||'kiểm tra lại'))})}
   else if(a==='syoff'){cfg.on=false;wr(CKEY,cfg);setStt('idle');toast('Đã ngắt đồng bộ')}
@@ -986,7 +1000,7 @@ document.addEventListener('input',function(e){
   if(t.id==='qn'){qNtu=t.value;document.getElementById('list').innerHTML=listNtu();updNtu();return}
   if(t.id==='q'){qCust=t.value;document.getElementById('list').innerHTML=listCust();updThu();return}
   if(t.id==='c-amt'){comp.amt=t.value.replace(/\D/g,'');compPrev();return}
-  if(t.id==='c-name'){comp.name=t.value;return}
+  if(t.id==='c-name'){comp.name=t.value;comp.customerId='';document.getElementById('c-customer').value='';return}
   if(t.id&&t.id.indexOf('n-')===0&&t.closest('#addNtu')){var key=t.id.slice(2);nf[key]=(key==='pos'||key==='mind')?t.value.replace(/\D/g,''):t.value;ntuOpen=true;return}
   if(t.id==='c-hc'||t.id==='c-hn'){comp[t.id==='c-hc'?'hc':'hn']=pnum(t.value);compPrev();var sg=document.querySelectorAll('.seg [data-ct]');if(sg.length===2){sg[0].textContent='COF · hệ số ×'+dec(comp.hc);sg[1].textContent='NON · hệ số ×'+dec(comp.hn)}return}
   if(t.dataset.set){pre(false);var k=t.dataset.set.replace('set-',''),v=t.value;
@@ -1005,6 +1019,17 @@ document.addEventListener('input',function(e){
 document.addEventListener('change',function(e){
   var t=e.target;
   if(t.id==='n-he'){nf.he=t.value;ntuOpen=true;return}
+  if(t.id==='c-customer'){
+    var customer=S.cust.find(function(c){return c.id===t.value&&awaitingSheetCollection(c)});
+    comp.customerId=customer?customer.id:'';
+    comp.name=customer?customer.n:'';
+    if(customer){
+      comp.k=String(customer.k||'').trim()||'Thu kỳ';
+      if(comp.k===NL){var factors=heff(customer);comp.hc=factors[0];comp.hn=factors[1]}
+      if(comp.x)comp.xh=defX();
+    }
+    compOpen=true;viewThu();document.getElementById('c-customer').focus();return
+  }
   if(t.id==='c-k'){comp.k=t.value;if(comp.x)comp.xh=defX();viewThu();return}
   if(t.id==='c-x'){comp.x=t.checked;if(comp.x)comp.xh=defX();viewThu();return}
   if(t.id==='c-xh'){comp.xh=parseFloat(t.value);compPrev();return}
